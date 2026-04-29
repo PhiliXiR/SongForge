@@ -1,0 +1,10 @@
+# env
+.env
+
+# local output
+SONG_FACTORY/
+output/
+
+# editor / OS
+.DS_Store
+Thumbs.db

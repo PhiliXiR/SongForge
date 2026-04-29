@@ -1,0 +1,40 @@
+{
+  "intake_example": {
+    "project": "night-drive",
+    "seed_brief": "melancholic synth-pop song about missing someone you only knew online",
+    "genre_hint": "synth-pop",
+    "mood_hint": ["melancholic", "nostalgic"],
+    "reference_artists": ["The Midnight", "CHVRCHES"],
+    "auto_select_first_concept": true
+  },
+  "concept_response_example": {
+    "concepts": [
+      {
+        "title": "Neon Ghost",
+        "summary": "A synth-pop confession about falling for someone through late-night messages, then grieving the shape they left behind when they disappeared."
+      },
+      {
+        "title": "Last Seen Online",
+        "summary": "A glossy, aching pop track about watching a chat window go quiet and realizing intimacy can evaporate without ever touching the real world."
+      }
+    ]
+  },
+  "lyrics_response_example": {
+    "lyrics": "[Verse 1]\n...",
+    "structure": ["verse 1", "chorus", "verse 2", "chorus", "bridge", "chorus"],
+    "notes": "breathy, intimate lead vocal"
+  },
+  "prompt_response_example": {
+    "suno_prompt": "melancholic synth-pop, nostalgic late-night atmosphere, shimmering analog synths, pulsing bass, airy intimate vocals, emotionally aching chorus, polished modern production",
+    "genre_tags": ["synth-pop"],
+    "mood_tags": ["melancholic", "nostalgic"],
+    "vocal_notes": "airy intimate vocal with emotional lift in chorus"
+  },
+  "metadata_response_example": {
+    "title_options": ["Neon Ghost", "Last Seen Online", "Blue Typing Dots"],
+    "genre_tags": ["synth-pop", "electropop"],
+    "mood_tags": ["melancholic", "nostalgic", "romantic"],
+    "short_description": "A shimmering synth-pop song about intimacy, distance, and the ghost of someone who only existed through a screen.",
+    "cover_art_prompt": "A neon-lit bedroom at 2AM, glowing monitor light, rain on the window, dreamy synth-pop mood, cinematic, blue and magenta palette"
+  }
+}

@@ -1,0 +1,331 @@
+{
+  "name": "SongForge - Intake and Generation",
+  "nodes": [
+    {
+      "parameters": {},
+      "name": "Start",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        250,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "keepOnlySet": true,
+        "set": {
+          "name": "string",
+          "value": "SongForge Intake"
+        }
+      },
+      "name": "Normalize Input",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 2,
+      "position": [
+        450,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "const now = new Date();\nconst yyyy = now.getFullYear();\nconst mm = String(now.getMonth() + 1).padStart(2, '0');\nconst dd = String(now.getDate()).padStart(2, '0');\nconst rand = Math.random().toString(36).slice(2, 6).toUpperCase();\nconst songId = `SF-${yyyy}${mm}${dd}-${rand}`;\nreturn [{ json: { ...$json, song_id: songId, status: 'idea_submitted' } }];"
+      },
+      "name": "Generate Song ID",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        650,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "record",
+        "operation": "create",
+        "table": "songs",
+        "columns": {
+          "string": [
+            {
+              "name": "song_id",
+              "value": "={{ $json[\"song_id\"] }}"
+            },
+            {
+              "name": "project",
+              "value": "={{ $json[\"project\"] }}"
+            },
+            {
+              "name": "status",
+              "value": "={{ $json[\"status\"] }}"
+            },
+            {
+              "name": "seed_brief",
+              "value": "={{ $json[\"seed_brief\"] }}"
+            }
+          ]
+        },
+        "additionalFields": {
+          "filter": true
+        }
+      },
+      "name": "Insert Song Record",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        850,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "url": "http://127.0.0.1:18789/v1/chat/completions",
+        "method": "POST",
+        "jsonParameters": true,
+        "options": {},
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ $env[\"OPENCLAW_GATEWAY_TOKEN\"] }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "bodyParametersJson": "{\"model\":\"openclaw/default\",\"messages\":[{\"role\":\"user\",\"content\":\"You are a music concept generator.\\n\\nInput:\\n- seed_brief: {{ $json[\\\"seed_brief\\\"] }}\\n- genre_hint: {{ $json[\\\"genre_hint\\\"] }}\\n- mood_hint: {{ $json[\\\"mood_hint\\\"] }}\\n- reference_artists: {{ $json[\\\"reference_artists\\\"] }}\\n\\nOutput requirements:\\n- produce 5 distinct song concepts\\n- one short paragraph each\\n- each concept should feel commercially and emotionally clear\\n- avoid filler and vague abstractions\\n- include a short working title for each concept\\n\\nReturn JSON with this shape:\\n{\\n  \\\"concepts\\\": [\\n    {\\n      \\\"title\\\": \\\"...\\\",\\n      \\\"summary\\\": \\\"...\\\"\\n    }\\n  ]\\n}\"}]},\"temperature\":0.7,\"max_tokens\":1000,\"stream\":false}"
+      },
+      "name": "Request Concepts",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 2,
+      "position": [
+        1050,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "try {\n  const raw = $json[\"choices\"][0][\"message\"][\"content\"];\n  // Try to extract JSON if wrapped in markdown or extra text\n  let jsonStr = raw;\n  const jsonMatch = raw.match(/\\{([\\s\\S]*)\\}/);\n  if (jsonMatch) {\n    jsonStr = jsonMatch[0];\n  }\n  const parsed = JSON.parse(jsonStr);\n  if (!parsed.concepts || !Array.isArray(parsed.concepts)) {\n    throw new Error('Invalid concepts format');\n  }\n  return [{ json: { ...$json, concept_options: parsed.concepts } }];\n} catch (e) {\n  return [{ json: { ...$json, error: `Concept parse failed: ${e.message}`, status: 'concept_error' } }];\n}"
+      },
+      "name": "Parse Concepts",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        1250,
+        250
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "record",
+        "operation": "update",
+        "table": "songs",
+        "columns": {
+          "string": [
+            {
+              "name": "concept_options",
+              "value": "={{ $json[\"concept_options\"] }}"
+            },
+            {
+              "name": "status",
+              "value": "concept_generated"
+            }
+          ]
+        },
+        "filterConditions": {
+          "string": [
+            {
+              "name": "song_id",
+              "value": "={{ $json[\"song_id\"] }}"
+            }
+          ]
+        }
+      },
+      "name": "Update Concept Options",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        1450,
+        250
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json[\"auto_select_first_concept\"] }}",
+              "operation": "equal",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "name": "Auto Select First Concept?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        1650,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "const first = $json.concept_options?.[0];\nif (!first) {\n  throw new Error('No concept available to select');\n}\nreturn [{ json: { ...$json, selected_concept: first.summary, selected_title_seed: first.title } }];"
+      },
+      "name": "Select First Concept",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        1850,
+        150
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "record",
+        "operation": "update",
+        "table": "songs",
+        "columns": {
+          "string": [
+            {
+              "name": "selected_concept",
+              "value": "={{ $json[\"selected_concept\"] }}"
+            },
+            {
+              "name": "status",
+              "value": "concept_selected"
+            }
+          ]
+        },
+        "filterConditions": {
+          "string": [
+            {
+              "name": "song_id",
+              "value": "={{ $json[\"song_id\"] }}"
+            }
+          ]
+        }
+      },
+      "name": "Update Selected Concept",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        2050,
+        150
+      ]
+    }
+  ],
+  "connections": {
+    "Start": {
+      "main": [
+        [
+          {
+            "node": "Normalize Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Input": {
+      "main": [
+        [
+          {
+            "node": "Generate Song ID",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Song ID": {
+      "main": [
+        [
+          {
+            "node": "Insert Song Record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert Song Record": {
+      "main": [
+        [
+          {
+            "node": "Request Concepts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Request Concepts": {
+      "main": [
+        [
+          {
+            "node": "Parse Concepts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Concepts": {
+      "main": [
+        [
+          {
+            "node": "Update Concept Options",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Concept Options": {
+      "main": [
+        [
+          {
+            "node": "Auto Select First Concept?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Auto Select First Concept?": {
+      "main": [
+        [
+          {
+            "node": "Select First Concept",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Update Selected Concept",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Select First Concept": {
+      "main": [
+        [
+          {
+            "node": "Update Selected Concept",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {},
+  "id": "1"
+}
